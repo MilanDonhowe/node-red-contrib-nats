@@ -1,69 +1,138 @@
 module.exports = function(RED) {
-    function NatsSubNode(config) {
-      RED.nodes.createNode(this, config);
+  const nats = require('nats');
 
-      this.address = config.address;
-      this.port = config.port;
-      this.user = config.user;
-      this.pass = config.pass;
-      this.subject = config.subject;
-      
-      var nats = require('nats');
-      var server = 'nats://' + config.user + ':' + config.pass + '@' + this.address + ':' + this.port + '/';
 
-      this.nc = nats.connect({'servers': [server]});
-      //console.log('nats server connect:' + server);
-      
-      var node = this;
+  /* utility functions */
+  function connectToBroker(user, pass, address, port){
+    let server = 'nats://' + user + ':' + pass + '@' + address + ':' + port + '/';
+    return nats.connect({'servers': [server]});
+  }
+  
+  function formatNatsError(err){
+    return `${err.code ?? "unknown error code (internal node error)"}: ${err.input ?? "unknown user input (internal node error)"}`
+  }
 
-      var sid = this.nc.subscribe(this.subject,  function(message, reply, subject) {
-        //console.log('subject: ' + subject + 'message: ' + message);
-        var msg = {payload: ''};
-        msg.payload = {
-          'subject': subject,
-          'message': message
+  /* subscription node */
+  function NatsSubNode(config){
+    RED.nodes.createNode(this, config);
+
+    // clear status
+    node.status({});
+
+    // extract config details out
+    this.address = config.address;
+    this.port = config.port;
+    this.user = config.user;
+    this.pass = config.pass;
+    this.subject = config.subject;
+    // node=this reference
+    const node = this;
+
+    let natsConRef = null;
+    
+    // this.nc will be Promise<NatsConnection>
+    this.nc = connectToBroker(config.user, config.pass, this.address, this.port);
+    this.nc
+      .then((natsConnection) => {
+        // hacky reference
+        natsConRef = natsConnection;
+        const subject = this.subject;
+        node.status({"fill": "green", "shape": "dot", "text": "connected to broker"});
+
+        // sid is an async iterator
+        const sid = natsConnection.subscribe(this.subject);
+        (async () => {
+          for await (const msg of sid){
+            node.send({"payload":msg, subject});
+          }
+        })();
+      })
+      // notify node-red editor & user that nats broker connection failed
+      .catch((err) => {
+        let errMsg = formatNatsError(err);
+        this.error(errMsg);
+        node.status({"fill": "red", "shape": "ring", "text": errMsg});
+      })
+    
+    // destructor for node
+    this.on('close', function(){
+      // clear status
+      node.status({});
+      if (natsConRef !== null){
+        natsConRef.drain().then(() => {
+          // happy flow; do nothing we chill
+        }).catch(err => {
+          // huh, we should log this.  Not sure how this would otherwise fail
+          let errMsg = formatNatsError(err);
+          node.warn("error closing nats con: " + errMsg);
+        })
+      }
+    })
+  }
+  RED.nodes.registerType("nats-sub", NatsSubNode)
+
+  function NatsPubNode(config){
+    RED.nodes.createNode(this, config);
+    
+    // clear status
+    node.status({});
+
+    // extract config details out
+    this.address = config.address;
+    this.port = config.port;
+    this.user = config.user;
+    this.pass = config.pass;
+
+    // node=this reference
+    const node = this;
+
+    // nats connection reference
+    let natsConRef = null;
+
+
+    // this.nc will be Promise<NatsConnection>
+    this.nc = connectToBroker(config.user, config.pass, this.address, this.port);
+    this.nc
+      .then((natsConnection) => {
+        // hacky reference update
+        natsConRef = natsConnection;
+        node.status({"fill": "green", "shape": "dot", "text": "connected to broker"});
+      })
+      // notify node-red editor & user that nats broker connection failed
+      .catch((err) => {
+        let errMsg = formatNatsError(err);
+        this.error(errMsg);
+        node.status({"fill": "red", "shape": "ring", "text": errMsg});
+      })
+
+    this.on('input', function(msg){
+      this.subject = msg.payload.subject || config.subject;
+      this.message = msg.payload.message || config.message;
+
+      // so we essentially drop messages iff there's no 
+      if (this.subject && this.message){
+        if (natsConRef !== null) {
+          natsConRef.publish(this.subject, this.message);
         }
-        node.send(msg);
-      });
+      }
 
-      this.on('close', function() {
-        if (this.nc) {
-          this.nc.unsubscribe(this.subject,sid);
-          this.nc.close();
-        }
-      });
-    }
-    RED.nodes.registerType("nats-sub",NatsSubNode);
+    })
 
-    function NatsPubNode(config) {
-      RED.nodes.createNode(this, config);
+    // destructor for node
+    this.on('close', function(){
+      // clear status
+      node.status({});
+      if (natsConRef !== null){
+        natsConRef.drain().then(() => {
+          // happy flow; do nothing we chill
+        }).catch(err => {
+          // huh, we should log this.  Not sure how this would otherwise fail
+          let errMsg = formatNatsError(err);
+          node.warn("error closing nats con: " + errMsg);
+        })
+      }
+    })
+  }
 
-      this.address = config.address;
-      this.port = config.port;
-      this.user = config.user;
-      this.pass = config.pass;
-
-      var nats = require('nats');
-      var server = 'nats://' + config.user + ':' + config.pass + '@' + this.address + ':' + this.port + '/';
-      this.nc = nats.connect({'servers': [server]});
-      //console.log('nats server connect:' + server);
-      var node = this;
-
-      this.on('input', function(msg) {
-        this.subject = msg.payload.subject || config.subject;
-        this.message = msg.payload.message || config.message;
-        //console.log('subject: ' + this.subject + ' message: ' + this.message);
-
-        if(this.subject && this.message){
-          this.nc.publish(this.subject, this.message);
-        }
-      });
-
-      this.on('close', function() {
-        if (this.nc) {
-          this.nc.close();
-        }
-      });
-    }
-    RED.nodes.registerType("nats-pub",NatsPubNode);
+  RED.nodes.registerType("nats-pub",NatsPubNode);
 }

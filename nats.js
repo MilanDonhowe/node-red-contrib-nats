@@ -1,5 +1,5 @@
 module.exports = function(RED) {
-  const nats = require('nats');
+  const nats = require('@nats-io/transport-node');
 
 
   /* utility functions */
@@ -16,6 +16,9 @@ module.exports = function(RED) {
   function NatsSubNode(config){
     RED.nodes.createNode(this, config);
 
+    // node=this reference
+    const node = this;
+
     // clear status
     node.status({});
 
@@ -25,8 +28,7 @@ module.exports = function(RED) {
     this.user = config.user;
     this.pass = config.pass;
     this.subject = config.subject;
-    // node=this reference
-    const node = this;
+    
 
     let natsConRef = null;
     
@@ -36,14 +38,14 @@ module.exports = function(RED) {
       .then((natsConnection) => {
         // hacky reference
         natsConRef = natsConnection;
-        const subject = this.subject;
+        //const subject = this.subject;
         node.status({"fill": "green", "shape": "dot", "text": "connected to broker"});
 
         // sid is an async iterator
         const sid = natsConnection.subscribe(this.subject);
         (async () => {
           for await (const msg of sid){
-            node.send({"payload":msg, subject});
+            node.send({"payload":msg.data, "subject": msg.subject});
           }
         })();
       })
@@ -74,6 +76,9 @@ module.exports = function(RED) {
   function NatsPubNode(config){
     RED.nodes.createNode(this, config);
     
+    // node=this reference
+    const node = this;
+
     // clear status
     node.status({});
 
@@ -83,8 +88,6 @@ module.exports = function(RED) {
     this.user = config.user;
     this.pass = config.pass;
 
-    // node=this reference
-    const node = this;
 
     // nats connection reference
     let natsConRef = null;

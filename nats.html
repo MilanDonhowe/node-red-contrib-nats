@@ -1,17 +1,18 @@
 <script type="text/javascript">
     RED.nodes.registerType('nats-sub',{
-        category: 'input',
+        category: 'network',
         color: '#B7E4F6',
         defaults: {
             address: {value: "localhost"},
             port: {value:"4222"},
             user: {value:"nats"},
             pass: {value:"nats"},
-            subject: {value:">"}
+            subject: {value:">"},
+            outputAsString: {"value":true}
         },
         inputs:0,
         outputs:1,
-        icon: "white-globe.png",
+        icon: "bridge.svg",
         label: "nats-sub"
     });
 </script>
@@ -37,15 +38,19 @@
         <label for="node-input-subject"><i class="icon-tag"></i>subject</label>
         <input type="text" id="node-input-subject" placeholder="subject">
     </div>
+    <div class="form-row">
+        <label for="node-input-outputAsString"><i class="icon-tag"></i>output messages as string</label>
+        <input type="checkbox" id="node-input-outputAsString" placeholder="outputAsString">
+    </div>
 </script>
 
 <script type="text/x-red" data-help-name="nats-sub">
-    <p>nats-sub node</p>
+    <p>Node for subscribing to topics on a NATS broker</p>
 </script>
 
 <script type="text/javascript">
     RED.nodes.registerType('nats-pub',{
-        category: 'output',
+        category: 'network',
         color: '#B7E4F6',
         defaults: {
             address: {value: "localhost"},
@@ -57,7 +62,7 @@
         },
         inputs:1,
         outputs:0,
-        icon: "white-globe.png",
+        icon: "bridge.svg",
         label: "nats-pub"
     });
 </script>

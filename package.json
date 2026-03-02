@@ -1,5 +1,5 @@
 {
-  "name": "@mdonhowe/node-red-contrib-nats",
+  "name": "@mylawn/node-red-contrib-nats",
   "version": "1.0.0",
   "description": "nats Node-RED",
   "author": {

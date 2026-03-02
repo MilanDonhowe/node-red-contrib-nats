@@ -1,6 +1,7 @@
 {
   "name": "@mylawn/node-red-contrib-nats",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "private": false,
   "description": "nats Node-RED",
   "author": {
     "name": "mdonhowe",

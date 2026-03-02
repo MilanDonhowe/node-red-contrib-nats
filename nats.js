@@ -9,6 +9,9 @@ module.exports = function(RED) {
   }
   
   function formatNatsError(err){
+    if (err.cause){
+      return `${err.cause}`
+    }
     if (err.code && err.input){
       return `${err.code}: ${err.input}`
     }
@@ -60,9 +63,11 @@ module.exports = function(RED) {
               try {
                 data = msg.string();
               } catch (error){
-                // TODO: test this out
-                // stole idea here from https://github.com/node-red/node-red/blob/6a75a084adc159de1be047e554b7463c306692a9/packages/node_modules/%40node-red/nodes/core/network/10-mqtt.js#L1323C27-L1323C62
-                // since we don't accept input messages, not clear from docs on how to report errors to runtime
+                // so, interesting note here.  According to Nats.js docs https://nats-io.github.io/nats.deno/interfaces/Msg.html#string
+                // msg.string() may throw a decoding error--but looking at the nats.js git source code they use the node.js built-in TextDecoder class
+                // with default parameters which has the default behavior of not throwing exceptions on encountering invalid unicode sequences.
+                // Instead, TextDecoder will replace invalid unicode byte sequences with the replacement character "�".
+                // Nonetheless, we'll include an error handler here for robustness, but this should never execute in practice.
                 node.error(RED._("nats.errors.utf-encoding"))
               }
             }
@@ -163,5 +168,5 @@ module.exports = function(RED) {
     })
   }
 
-  RED.nodes.registerType("nats-pub",NatsPubNode);
+  RED.nodes.registerType("nats-pub", NatsPubNode);
 }
